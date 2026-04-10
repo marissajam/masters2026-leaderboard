@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Masters Live Leaderboard Tracker</title>
+  <style>
+    :root {
+      --bg: #0b1320;
+      --panel: #101a2b;
+      --panel-2: #13213a;
+      --line: #263756;
+      --text: #eef4ff;
+      --muted: #aab7d1;
+      --accent: #2fba7b;
+      --accent-2: #ffd44d;
+      --danger: #ff7a7a;
+      --shadow: 0 16px 40px rgba(0,0,0,.24);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(47,186,123,.12), transparent 26%),
+        radial-gradient(circle at top left, rgba(255,212,77,.10), transparent 24%),
+        linear-gradient(180deg, #0a1220 0%, #08101b 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      width: min(1400px, calc(100vw - 32px));
+      margin: 24px auto 48px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.6fr .9fr;
+      gap: 14px;
+      margin-bottom: 14px;
+      align-items: start;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(19,33,58,.95), rgba(13,22,38,.95));
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero-main {
+      padding: 18px 20px 16px;
+      position: relative;
+    }
+
+    .eyebrow {
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(24px, 3.2vw, 36px);
+      line-height: 1.02;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.4;
+      max-width: 60ch;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .stat {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.05);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 5px;
+    }
+
+    .stat-value {
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .status-grid-hero {
+      grid-template-columns: 1.25fr .9fr .9fr;
+    }
+
+    .stat-highlight {
+      background: linear-gradient(180deg, rgba(255,212,77,.20), rgba(47,186,123,.10));
+      border: 1px solid rgba(255,212,77,.30);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+    }
+
+    .stat-highlight .stat-label {
+      color: #ffe7a4;
+    }
+
+    .stat-highlight .stat-value {
+      font-size: 24px;
+      color: #fff3c2;
+    }
+
+
+    .controls {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .controls-top {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .toggle-btn {
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,.08);
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .controls-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .controls.collapsed .controls-body {
+      display: none;
+    }
+
+    .controls-summary {
+      display: none;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      margin-top: -4px;
+    }
+
+    .controls.collapsed .controls-summary {
+      display: block;
+    }
+
+    .controls h2, .section-title {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .controls p, .tiny {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    input, textarea, button {
+      font: inherit;
+    }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      padding: 12px 13px;
+      outline: none;
+    }
+
+    input:focus, textarea:focus {
+      border-color: rgba(47,186,123,.65);
+      box-shadow: 0 0 0 3px rgba(47,186,123,.15);
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .12s ease, opacity .12s ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+
+    .primary { background: var(--accent); color: #072013; }
+    .secondary { background: rgba(255,255,255,.08); color: var(--text); }
+    .ghost { background: transparent; color: var(--muted); border: 1px solid rgba(255,255,255,.08); }
+
+    .error {
+      color: #ffd9d9;
+      background: rgba(255,80,80,.12);
+      border: 1px solid rgba(255,80,80,.24);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: none;
+    }
+
+    .tracked {
+      padding: 14px;
+      margin-bottom: 14px;
+      position: sticky;
+      top: 10px;
+      z-index: 20;
+      backdrop-filter: blur(14px);
+      background: linear-gradient(180deg, rgba(19,33,58,.96), rgba(13,22,38,.96));
+    }
+
+    .tracked.minimized .tracked-grid {
+      display: none;
+    }
+
+    .tracked.minimized .tracked-head {
+      margin-bottom: 0;
+    }
+
+    .tracked::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius);
+      pointer-events: none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    }
+
+    .tracked-tools {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .tracked-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .tracked-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .player-card {
+      background: linear-gradient(180deg, rgba(255,212,77,.14), rgba(255,255,255,.04));
+      border: 1px solid rgba(255,212,77,.22);
+      border-radius: 16px;
+      padding: 12px;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .player-card.miss {
+      background: rgba(255,255,255,.03);
+      border-color: rgba(255,255,255,.08);
+    }
+
+    .player-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .player-name {
+      font-weight: 800;
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .player-pos {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: -.02em;
+      color: var(--accent-2);
+      white-space: nowrap;
+    }
+
+    .player-card.miss .player-pos { color: var(--muted); }
+
+    .kv {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .mini {
+      background: rgba(255,255,255,.04);
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .mini span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 6px;
+    }
+
+    .mini strong {
+      display: block;
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .mini.priority {
+      background: linear-gradient(180deg, rgba(255,212,77,.18), rgba(255,255,255,.06));
+      border: 1px solid rgba(255,212,77,.22);
+    }
+
+    .mini.priority strong {
+      font-size: 22px;
+      color: #fff1b5;
+    }
+
+    .leaderboard {
+      padding: 14px;
+      scroll-margin-top: 220px;
+    }
+
+    .leaderboard-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow: auto;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.06);
+      background: rgba(255,255,255,.02);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 880px;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #12213a;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-size: 12px;
+      text-align: left;
+      padding: 14px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+
+    tbody td {
+      padding: 14px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+      vertical-align: middle;
+    }
+
+    tbody tr:hover { background: rgba(255,255,255,.03); }
+
+    tbody tr.highlight {
+      background: linear-gradient(90deg, rgba(255,212,77,.22), rgba(255,212,77,.08) 35%, rgba(255,255,255,.02));
+      box-shadow: inset 6px 0 0 var(--accent-2), inset 0 1px 0 rgba(255,212,77,.28), inset 0 -1px 0 rgba(255,212,77,.18);
+    }
+
+    tbody tr.highlight td {
+      font-weight: 700;
+    }
+
+    tbody tr.highlight .player-meta strong {
+      color: #fff6d2;
+    }
+
+    .tracked-marker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 72px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: rgba(255,212,77,.16);
+      color: #ffe28d;
+      border: 1px solid rgba(255,212,77,.32);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .tracked-marker.off {
+      background: transparent;
+      color: var(--muted);
+      border-color: rgba(255,255,255,.08);
+    }
+
+    .player-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 260px;
+    }
+
+    .headshot {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.08);
+      flex: 0 0 38px;
+    }
+
+    .player-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .player-meta strong { font-size: 15px; }
+    .player-meta small { color: var(--muted); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(47,186,123,.12);
+      color: #9fe6c1;
+      border: 1px solid rgba(47,186,123,.24);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .muted { color: var(--muted); }
+
+    details {
+      margin-top: 4px;
+      background: rgba(255,255,255,.02);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 14px;
+      padding: 10px 12px;
+    }
+
+    summary { cursor: pointer; font-weight: 700; }
+
+    textarea { min-height: 84px; resize: vertical; }
+
+    .footnote {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 1120px) {
+      .hero { grid-template-columns: 1fr; }
+      .tracked-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 680px) {
+      .wrap { width: min(100vw - 18px, 1400px); margin-top: 10px; }
+      .hero-main, .controls, .tracked, .leaderboard { padding: 16px; }
+      .status-grid, .field-grid { grid-template-columns: 1fr; }
+      .btn-row { flex-direction: column; }
+      .tracked-head, .leaderboard-head { align-items: start; flex-direction: column; }
+      .tracked { top: 6px; }
+      .tracked-grid {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(220px, 78vw);
+        grid-template-columns: none;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        padding-bottom: 4px;
+        scroll-snap-type: x proximity;
+      }
+      .player-card {
+        min-height: 124px;
+        scroll-snap-align: start;
+      }
+      .player-name { font-size: 16px; }
+      .player-pos { font-size: 24px; }
+      .mini { padding: 9px; }
+      .player-cell { min-width: 220px; }
+      table { min-width: 760px; }
+      thead th, tbody td { padding: 12px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="card hero-main">
+        <div class="eyebrow">Live golf tracker</div>
+        <h1>Custom Masters Leaderboard</h1>
+        <div class="sub">
+          Full field leaderboard on every refresh, plus a tracked-player strip up top so your five names never get lost in the pack.
+        </div>
+
+        <div class="status-grid status-grid-hero">
+          <div class="stat stat-highlight">
+            <div class="stat-label">My combined score for today</div>
+            <div class="stat-value" id="combinedToday">—</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Status</div>
+            <div class="stat-value" id="eventStatus">—</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Last refresh</div>
+            <div class="stat-value" id="lastRefresh">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card controls collapsed" id="controlsCard">
+        <div class="controls-top">
+          <div>
+            <h2>Tracked players</h2>
+            <p>Swap these any day. Names save in your browser automatically.</p>
+          </div>
+          <button class="toggle-btn" id="controlsToggle" type="button">Expand</button>
+        </div>
+        <div class="controls-summary" id="controlsSummary">5 slots saved. Expand to change names or event ID.</div>
+        <div class="controls-body">
+
+        <div class="field">
+          <label for="eventId">Fallback event ID</label>
+          <input id="eventId" value="401811941" />
+        </div>
+
+        <div class="field-grid" id="nameFields"></div>
+
+        <div class="btn-row">
+          <button class="primary" id="saveBtn">Save names</button>
+          <button class="secondary" id="refreshBtn">Refresh now</button>
+          <button class="ghost" id="sampleBtn">Load sample names</button>
+        </div>
+
+        <div class="error" id="errorBox"></div>
+
+        <details>
+          <summary>Quick paste 5 names</summary>
+          <p class="tiny" style="margin: 10px 0 8px;">Paste names separated by commas or line breaks.</p>
+          <textarea id="bulkNames" placeholder="Scottie Scheffler&#10;Rory McIlroy&#10;Jon Rahm&#10;Bryson DeChambeau&#10;Xander Schauffele"></textarea>
+          <div class="btn-row" style="margin-top: 10px;">
+            <button class="secondary" id="applyBulkBtn">Apply pasted names</button>
+          </div>
+        </details>
+
+        <div class="footnote">
+          Auto-refreshes every 20 seconds. It now tries official Masters sources first, then PGA TOUR, with a legacy fallback if those sources are unavailable. You usually will not need to change the fallback ID.
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card tracked" id="trackedSection">
+      <div class="tracked-head">
+        <div>
+          <div class="section-title">Your tracked players</div>
+          <div class="tiny">This strip stays pinned while you scroll, so your five names stay in view against the field.</div>
+        </div>
+        <div class="tracked-tools">
+          <div class="pill" id="fieldCount">Field size: —</div>
+          <button class="toggle-btn" id="trackedToggle" type="button">Minimize</button>
+        </div>
+      </div>
+      <div class="tracked-grid" id="trackedGrid"></div>
+    </section>
+
+    <section class="card leaderboard">
+      <div class="leaderboard-head">
+        <div>
+          <div class="section-title">Full leaderboard</div>
+    <div class="tiny">Tracked rows are pinned with a clear gold treatment and the table sorts by current position.</div>
+        </div>
+        <div class="pill" id="refreshState">Waiting for first refresh</div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 92px;">Track</th>
+              <th style="width: 70px;">Pos</th>
+              <th>Player</th>
+              <th style="width: 90px;">Score</th>
+              <th style="width: 90px;">Today</th>
+              <th style="width: 100px;">Thru</th>
+              <th style="width: 90px;">R1</th>
+              <th style="width: 90px;">R2</th>
+              <th style="width: 90px;">R3</th>
+              <th style="width: 90px;">R4</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'masters-tracker-settings-v2';
+    const SAMPLE_NAMES = [
+      'Scottie Scheffler',
+      'Rory McIlroy',
+      'Jon Rahm',
+      'Bryson DeChambeau',
+      'Xander Schauffele'
+    ];
+    const DEFAULT_EVENT_ID = '401811941';
+    const REFRESH_MS = 20000;
+
+    const el = (id) => document.getElementById(id);
+    const state = {
+      timer: null,
+      players: [],
+      trackedNames: [],
+      eventId: DEFAULT_EVENT_ID,
+      controlsCollapsed: true,
+      trackedMinimized: false,
+      lastData: null,
+    };
+
+    function buildNameFields() {
+      const wrap = el('nameFields');
+      wrap.innerHTML = '';
+      for (let i = 0; i < 5; i++) {
+        const field = document.createElement('div');
+        field.className = 'field';
+        field.innerHTML = `
+          <label for="tracked_${i}">Player ${i + 1}</label>
+          <input id="tracked_${i}" placeholder="Enter golfer name" />
+        `;
+        wrap.appendChild(field);
+      }
+    }
+
+    function loadSettings() {
+      buildNameFields();
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      const names = saved?.trackedNames?.length ? saved.trackedNames : SAMPLE_NAMES;
+      state.eventId = saved?.eventId || DEFAULT_EVENT_ID;
+      state.controlsCollapsed = saved?.controlsCollapsed ?? true;
+      state.trackedMinimized = saved?.trackedMinimized ?? false;
+      el('eventId').value = state.eventId;
+      names.slice(0, 5).forEach((name, idx) => {
+        const input = el(`tracked_${idx}`);
+        if (input) input.value = name;
+      });
+      state.trackedNames = getTrackedNames();
+      applyUiPrefs();
+      updateControlsSummary();
+    }
+
+    function saveSettings() {
+      state.trackedNames = getTrackedNames();
+      state.eventId = (el('eventId').value || DEFAULT_EVENT_ID).trim();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        trackedNames: state.trackedNames,
+        eventId: state.eventId,
+        controlsCollapsed: state.controlsCollapsed,
+        trackedMinimized: state.trackedMinimized,
+      }));
+      updateControlsSummary();
+    }
+
+    function getTrackedNames() {
+      const names = [];
+      for (let i = 0; i < 5; i++) {
+        names.push((el(`tracked_${i}`)?.value || '').trim());
+      }
+      return names;
+    }
+
+
+    function updateControlsSummary() {
+      const active = state.trackedNames.filter(Boolean);
+      const summary = active.length ? active.join(' • ') : 'No tracked players saved yet.';
+      el('controlsSummary').textContent = `${active.length}/5 slots saved${active.length ? `: ${summary}` : ''}`;
+    }
+
+    function applyUiPrefs() {
+      const controls = el('controlsCard');
+      const tracked = el('trackedSection');
+      controls.classList.toggle('collapsed', !!state.controlsCollapsed);
+      tracked.classList.toggle('minimized', !!state.trackedMinimized);
+      el('controlsToggle').textContent = state.controlsCollapsed ? 'Expand' : 'Collapse';
+      el('trackedToggle').textContent = state.trackedMinimized ? 'Expand' : 'Minimize';
+    }
+
+    function toggleControls() {
+      state.controlsCollapsed = !state.controlsCollapsed;
+      applyUiPrefs();
+      saveSettings();
+    }
+
+    function toggleTracked() {
+      state.trackedMinimized = !state.trackedMinimized;
+      applyUiPrefs();
+      saveSettings();
+    }
+
+    function normalizeName(value) {
+      return (value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9 ]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    }
+
+    function getHeadshot(id) {
+      return id ? `https://a.espncdn.com/i/headshots/golf/players/full/${id}.png` : '';
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function showError(message) {
+      const box = el('errorBox');
+      box.style.display = message ? 'block' : 'none';
+      box.textContent = message || '';
+    }
+
+    function updateRefreshPill(text) {
+      el('refreshState').textContent = text;
+    }
+
+    function formatTime(date) {
+      return new Intl.DateTimeFormat([], {
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(date);
+    }
+
+    function numericPosition(raw, fallbackIndex, scoreValue = null) {
+      const rawStr = String(raw ?? '').trim();
+      const cleaned = rawStr.replace(/^T/i, '').replace(/[^0-9]/g, '');
+      if (cleaned) return Number(cleaned);
+      if (typeof scoreValue === 'number' && Number.isFinite(scoreValue)) {
+        return 1000 + scoreValue;
+      }
+      return 5000 + fallbackIndex + 1;
+    }
+
+    function scoreDisplay(raw) {
+      if (raw == null || raw === '') return '—';
+      if (String(raw) === '0') return 'E';
+      return String(raw);
+    }
+
+    function relativeScoreToNumber(raw) {
+      const str = String(raw ?? '').trim().toUpperCase();
+      if (!str || str === '—' || str === '-') return null;
+      if (str === 'E' || str === 'EVEN') return 0;
+      const match = str.match(/^([+-]?)(\d+)$/);
+      if (match) {
+        const sign = match[1] === '-' ? -1 : 1;
+        return sign * Number(match[2]);
+      }
+      const direct = Number(str);
+      return Number.isFinite(direct) ? direct : null;
+    }
+
+    function formatRelativeScore(num) {
+      if (num == null || !Number.isFinite(num)) return '—';
+      if (num === 0) return 'E';
+      return num > 0 ? `+${num}` : String(num);
+    }
+
+    function tryTodayFromStatistics(player) {
+      const stats = Array.isArray(player?.statistics) ? player.statistics : [];
+      for (const stat of stats) {
+        const key = `${stat?.name || ''} ${stat?.displayName || ''} ${stat?.abbreviation || ''}`.toLowerCase();
+        if (key.includes('today')) {
+          return stat?.displayValue || stat?.displayValueShort || stat?.value || '—';
+        }
+      }
+      return null;
+    }
+
+    function roundScores(player) {
+      const rounds = ['—','—','—','—'];
+      const lines = Array.isArray(player?.linescores) ? player.linescores : [];
+      lines.forEach((line, idx) => {
+        if (idx < 4) rounds[idx] = line?.displayValue ?? line?.value ?? '—';
+      });
+      return rounds;
+    }
+
+    function parsePlayer(player, idx) {
+      const position = player?.place
+        ?? player?.rank
+        ?? player?.position?.displayValue
+        ?? player?.position?.shortDisplayName
+        ?? player?.position?.name
+        ?? player?.curatedRank?.displayValue
+        ?? player?.curatedRank?.current
+        ?? player?.order
+        ?? (idx + 1);
+
+      const score = player?.score?.displayValue
+        ?? player?.score?.value
+        ?? player?.displayScore
+        ?? '—';
+
+      const thru = player?.status?.thru
+        ?? player?.status?.type?.shortDetail
+        ?? player?.status?.type?.detail
+        ?? player?.status?.displayValue
+        ?? '—';
+
+      const today = player?.today
+        ?? tryTodayFromStatistics(player)
+        ?? player?.linescores?.at?.(-1)?.displayValue
+        ?? '—';
+
+      const name = player?.athlete?.displayName || player?.displayName || player?.name || 'Unknown';
+      const id = player?.id || player?.athlete?.id || '';
+      const rounds = roundScores(player);
+
+      const scoreText = scoreDisplay(score);
+      const todayText = scoreDisplay(today);
+      const scoreNumber = relativeScoreToNumber(scoreText);
+      const todayNumber = relativeScoreToNumber(todayText);
+
+      return {
+        raw: player,
+        id,
+        name,
+        nameKey: normalizeName(name),
+        position: String(position),
+        positionSort: numericPosition(position, idx, scoreNumber),
+        score: scoreText,
+        scoreNumber,
+        thru: String(thru || '—'),
+        today: todayText,
+        todayNumber,
+        rounds,
+        headshot: getHeadshot(id),
+        country: player?.athlete?.flag?.alt || player?.athlete?.country || '',
+      };
+    }
+
+    async function fetchJson(url) {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        return await res.json();
+      }
+
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch (_) {
+        const start = text.indexOf('{');
+        const end = text.lastIndexOf('}');
+        if (start !== -1 && end !== -1 && end > start) {
+          return JSON.parse(text.slice(start, end + 1));
+        }
+        throw new Error('Response was not parseable JSON');
+      }
+    }
+
+    async function fetchText(url) {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.text();
+    }
+
+    function normalizeFeedPlayer(source, idx) {
+      const name = source?.name || source?.displayName || source?.playerName || source?.athlete?.displayName || source?.player?.displayName || source?.player?.fullName || source?.fullName || 'Unknown';
+      const id = source?.id || source?.playerId || source?.athlete?.id || source?.player?.id || `src_${idx}_${normalizeName(name)}`;
+      const position = source?.position ?? source?.pos ?? source?.place ?? source?.rank ?? source?.standing ?? source?.leaderboardPosition ?? source?.curatedRank?.displayValue ?? source?.positionText ?? (idx + 1);
+      const scoreRaw = source?.score ?? source?.total ?? source?.toPar ?? source?.to_par ?? source?.totalToPar ?? source?.overall ?? source?.displayScore ?? source?.displayTotal ?? '—';
+      const todayRaw = source?.today ?? source?.roundToday ?? source?.toDay ?? source?.roundScore ?? source?.currentRoundToPar ?? source?.todayScore ?? source?.roundDisplay ?? source?.day ?? '—';
+      const thruRaw = source?.thru ?? source?.hole ?? source?.status ?? source?.holesComplete ?? source?.through ?? source?.toHole ?? source?.playerStatus ?? source?.teeTime ?? source?.roundStatus ?? '—';
+      const roundsRaw = source?.rounds || source?.scores || source?.roundScores || source?.round_details || [];
+      const rounds = Array.isArray(roundsRaw)
+        ? [0,1,2,3].map((i) => scoreDisplay(roundsRaw?.[i]?.score ?? roundsRaw?.[i]?.displayValue ?? roundsRaw?.[i]?.value ?? roundsRaw?.[i] ?? '—'))
+        : ['—','—','—','—'];
+      const scoreText = scoreDisplay(scoreRaw);
+      const todayText = scoreDisplay(todayRaw);
+      const scoreNumber = relativeScoreToNumber(scoreText);
+      const todayNumber = relativeScoreToNumber(todayText);
+      return {
+        raw: source,
+        id,
+        name,
+        nameKey: normalizeName(name),
+        position: String(position),
+        positionSort: numericPosition(position, idx, scoreNumber),
+        score: scoreText,
+        scoreNumber,
+        thru: String(thruRaw || '—'),
+        today: todayText,
+        todayNumber,
+        rounds,
+        headshot: getHeadshot(id),
+        country: source?.country || source?.athlete?.flag?.alt || source?.athlete?.country || source?.player?.country || '',
+      };
+    }
+
+    function looksLikeLeaderboardPlayer(item) {
+      if (!item || typeof item !== 'object') return false;
+      const candidateName = item?.name || item?.displayName || item?.playerName || item?.athlete?.displayName || item?.player?.displayName || item?.player?.fullName || item?.fullName;
+      const hasLeaderboardSignal = 'position' in item || 'pos' in item || 'score' in item || 'toPar' in item || 'today' in item || 'thru' in item || 'hole' in item || 'rounds' in item || 'scores' in item || 'roundScores' in item;
+      return Boolean(candidateName && hasLeaderboardSignal);
+    }
+
+    function collectPlayersDeep(root, limit = 300) {
+      const results = [];
+      const seen = new Set();
+      function walk(node) {
+        if (!node || results.length >= limit) return;
+        if (Array.isArray(node)) {
+          if (node.length && node.every(looksLikeLeaderboardPlayer)) {
+            for (const item of node) {
+              const key = JSON.stringify([item?.id, item?.name, item?.displayName, item?.playerName, item?.athlete?.displayName, item?.position, item?.pos, item?.score, item?.toPar, item?.today, item?.thru]);
+              if (!seen.has(key)) {
+                seen.add(key);
+                results.push(item);
+              }
+            }
+          }
+          for (const item of node) walk(item);
+          return;
+        }
+        if (typeof node === 'object') {
+          for (const value of Object.values(node)) walk(value);
+        }
+      }
+      walk(root);
+      return results;
+    }
+
+    function feedToEventData(players, sourceLabel, statusText = 'Live') {
+      return {
+        sourceLabel,
+        statusText,
+        events: [{
+          name: sourceLabel,
+          status: { type: { detail: statusText } },
+          competitions: [{
+            status: { type: { detail: statusText } },
+            competitors: players,
+          }],
+        }],
+      };
+    }
+
+    function tryExtractJsonObjects(text) {
+      const objects = [];
+      const starts = [];
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === '{') starts.push(i);
+      }
+      for (const start of starts.slice(0, 30)) {
+        let depth = 0;
+        let inStr = false;
+        let esc = false;
+        for (let i = start; i < text.length; i++) {
+          const ch = text[i];
+          if (inStr) {
+            if (esc) esc = false;
+            else if (ch === '\\') esc = true;
+            else if (ch === '"') inStr = false;
+            continue;
+          }
+          if (ch === '"') { inStr = true; continue; }
+          if (ch === '{') depth++;
+          if (ch === '}') {
+            depth--;
+            if (depth === 0) {
+              const chunk = text.slice(start, i + 1);
+              try {
+                objects.push(JSON.parse(chunk));
+              } catch (_) {}
+              break;
+            }
+          }
+        }
+      }
+      return objects;
+    }
+
+    function parseLeaderboardRowsFromText(text) {
+      const lines = text.split(/\r?\n/).map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      const players = [];
+      const seen = new Set();
+      const patterns = [
+        /^(T?\d+|CUT|WD|DQ|E)\s+([A-Z][A-Za-z'’\-.]+(?:\s+[A-Z][A-Za-z'’\-.]+){1,3})\s+([+-]\d+|E)\s+((?:F|CUT|WD|DQ|[1-9]|1\d|18|\d{1,2}:\d{2}\s*[AP]M|\d{1,2}:\d{2}))$/i,
+        /^(T?\d+|CUT|WD|DQ|E)\s+([A-Z]\.\s*[A-Z][A-Za-z'’\-.]+)\s+([+-]\d+|E)\s+((?:F|CUT|WD|DQ|[1-9]|1\d|18|\d{1,2}:\d{2}\s*[AP]M|\d{1,2}:\d{2}))$/i,
+      ];
+      for (const line of lines) {
+        for (const pattern of patterns) {
+          const m = line.match(pattern);
+          if (!m) continue;
+          const [, pos, name, score, thru] = m;
+          const key = `${normalizeName(name)}|${pos}|${score}|${thru}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            players.push({ position: pos, name, score, today: '—', thru, rounds: [] });
+          }
+          break;
+        }
+      }
+      return players;
+    }
+
+    async function tryJsonSource(urls, sourceLabel, statusText) {
+      const errors = [];
+      for (const url of urls) {
+        try {
+          const json = await fetchJson(url);
+          const rawPlayers = collectPlayersDeep(json);
+          if (rawPlayers.length >= 20) {
+            const players = rawPlayers.map(normalizeFeedPlayer);
+            return { data: feedToEventData(players, sourceLabel, statusText), sourceLabel };
+          }
+        } catch (err) {
+          errors.push(`${url} -> ${err.message}`);
+        }
+      }
+      throw new Error(errors.join(' | '));
+    }
+
+    async function tryTextSource(urls, sourceLabel, statusText) {
+      const errors = [];
+      for (const url of urls) {
+        try {
+          const text = await fetchText(url);
+          const extractedObjects = tryExtractJsonObjects(text);
+          let rawPlayers = [];
+          for (const obj of extractedObjects) {
+            rawPlayers = collectPlayersDeep(obj);
+            if (rawPlayers.length >= 20) break;
+          }
+          if (rawPlayers.length >= 20) {
+            const players = rawPlayers.map(normalizeFeedPlayer);
+            return { data: feedToEventData(players, sourceLabel, statusText), sourceLabel };
+          }
+          const parsedRows = parseLeaderboardRowsFromText(text);
+          if (parsedRows.length >= 20) {
+            const players = parsedRows.map(normalizeFeedPlayer);
+            return { data: feedToEventData(players, sourceLabel, statusText), sourceLabel };
+          }
+        } catch (err) {
+          errors.push(`${url} -> ${err.message}`);
+        }
+      }
+      throw new Error(errors.join(' | '));
+    }
+
+    async function fetchLeaderboard(eventId) {
+      const mastersJsonUrls = [
+        'https://www.masters.com/en_US/scores/feeds/leaderboard.json',
+        'https://www.masters.com/en_US/scores/feeds/leaderboard-v2.json',
+        'https://www.masters.com/en_US/scores/feeds/scoreboard.json',
+      ];
+      const mastersTextUrls = [
+        'https://r.jina.ai/http://www.masters.com/en_US/scores/index_low.html',
+        'https://r.jina.ai/http://www.masters.com/en_US/scores/',
+        'https://r.jina.ai/http://www.masters.com/leaderboard',
+      ];
+      const pgaJsonUrls = [
+        'https://www.pgatour.com/data/r/014/leaderboard-v2.json',
+        'https://www.pgatour.com/data/r/014/leaderboard.json',
+      ];
+      const pgaTextUrls = [
+        'https://r.jina.ai/http://www.pgatour.com/leaderboard',
+        'https://r.jina.ai/http://www.pgatour.com/tournaments/2026/masters-tournament/R2026014/overview',
+      ];
+      const legacyEspnUrls = [
+        `https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?league=pga&region=us&lang=en&event=${encodeURIComponent(eventId)}`,
+        `https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?tournamentId=${encodeURIComponent(eventId)}`,
+        `https://r.jina.ai/http://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?league=pga&region=us&lang=en&event=${encodeURIComponent(eventId)}`,
+        `https://r.jina.ai/http://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?tournamentId=${encodeURIComponent(eventId)}`,
+      ];
+
+      const attempts = [
+        () => tryJsonSource(mastersJsonUrls, 'Official Masters', 'Live from masters.com'),
+        () => tryTextSource(mastersTextUrls, 'Official Masters', 'Live from masters.com'),
+        () => tryJsonSource(pgaJsonUrls, 'PGA TOUR', 'Live from pgatour.com'),
+        () => tryTextSource(pgaTextUrls, 'PGA TOUR', 'Live from pgatour.com'),
+        async () => {
+          const errors = [];
+          for (const url of legacyEspnUrls) {
+            try {
+              const json = await fetchJson(url);
+              const players = (json?.events?.[0]?.competitions?.[0]?.competitors || []).map(parsePlayer);
+              if (players.length >= 20) {
+                return { data: json, sourceLabel: 'Legacy backup' };
+              }
+            } catch (err) {
+              errors.push(`${url} -> ${err.message}`);
+            }
+          }
+          throw new Error(errors.join(' | '));
+        },
+      ];
+
+      const errors = [];
+      for (const attempt of attempts) {
+        try {
+          return await attempt();
+        } catch (err) {
+          errors.push(err.message);
+        }
+      }
+      throw new Error(errors.join(' | '));
+    }
+
+    function renderHeader(data, trackedMatches = []) {
+      const event = data?.events?.[0] || {};
+      const comp = event?.competitions?.[0] || {};
+      const status = comp?.status?.type?.detail || event?.status?.type?.detail || event?.name || 'Live';
+      const combinedToday = trackedMatches.reduce((sum, item) => {
+        if (!item?.found || item.found.todayNumber == null) return sum;
+        return sum + item.found.todayNumber;
+      }, 0);
+      el('combinedToday').textContent = formatRelativeScore(combinedToday);
+      el('eventStatus').textContent = status;
+      el('lastRefresh').textContent = formatTime(new Date());
+    }
+
+    function findTrackedPlayers(players, names) {
+      return names.map((targetName) => {
+        const clean = normalizeName(targetName);
+        if (!clean) return { targetName: '', found: null };
+        let found = players.find((p) => p.nameKey === clean);
+        if (!found) found = players.find((p) => p.nameKey.includes(clean) || clean.includes(p.nameKey));
+        return { targetName, found: found || null };
+      });
+    }
+
+    function renderTracked(players, trackedNames) {
+      const grid = el('trackedGrid');
+      const matches = findTrackedPlayers(players, trackedNames);
+      grid.innerHTML = matches.map(({ targetName, found }) => {
+        if (!targetName) {
+          return `
+            <article class="player-card miss">
+              <div>
+                <div class="player-top">
+                  <div class="player-name muted">Empty slot</div>
+                  <div class="player-pos">—</div>
+                </div>
+              </div>
+              <div class="tiny">Add a player name above.</div>
+            </article>
+          `;
+        }
+
+        if (!found) {
+          return `
+            <article class="player-card miss">
+              <div>
+                <div class="player-top">
+                  <div class="player-name">${escapeHtml(targetName)}</div>
+                  <div class="player-pos">NF</div>
+                </div>
+                <div class="tiny" style="margin-top: 12px;">Not found in the loaded field.</div>
+              </div>
+              <div class="kv">
+                <div class="mini"><span>Score</span><strong>—</strong></div>
+                <div class="mini"><span>Today</span><strong>—</strong></div>
+                <div class="mini"><span>Thru</span><strong>—</strong></div>
+              </div>
+            </article>
+          `;
+        }
+
+        return `
+          <article class="player-card">
+            <div>
+              <div class="player-top">
+                <div class="player-name">${escapeHtml(found.name)}</div>
+                <div class="player-pos">${escapeHtml(found.position)}</div>
+              </div>
+              <div class="tiny" style="margin-top: 12px;">Pinned against the full field.</div>
+            </div>
+            <div class="kv">
+              <div class="mini priority"><span>Today</span><strong>${escapeHtml(found.today)}</strong></div>
+              <div class="mini"><span>Total</span><strong>${escapeHtml(found.score)}</strong></div>
+              <div class="mini"><span>Thru</span><strong>${escapeHtml(found.thru)}</strong></div>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function getTrackedLookup(players, trackedNames) {
+      const matches = findTrackedPlayers(players, trackedNames);
+      const idSet = new Set(matches.filter(item => item.found?.id).map(item => String(item.found.id)));
+      const nameSet = new Set(matches.filter(item => item.found?.nameKey).map(item => item.found.nameKey));
+      return { matches, idSet, nameSet };
+    }
+
+    function comparePlayers(a, b) {
+      if (a.positionSort !== b.positionSort) return a.positionSort - b.positionSort;
+      if (a.scoreNumber != null && b.scoreNumber != null && a.scoreNumber !== b.scoreNumber) return a.scoreNumber - b.scoreNumber;
+      const aPos = String(a.position || '');
+      const bPos = String(b.position || '');
+      if (aPos !== bPos) return aPos.localeCompare(bPos, undefined, { numeric: true, sensitivity: 'base' });
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    }
+
+    function renderTable(players, trackedNames) {
+      const trackedLookup = getTrackedLookup(players, trackedNames);
+      const body = el('leaderboardBody');
+      body.innerHTML = players.map((player) => {
+        const isTracked = trackedLookup.idSet.has(String(player.id)) || trackedLookup.nameSet.has(player.nameKey);
+        return `
+          <tr class="${isTracked ? 'highlight' : ''}">
+            <td><span class="tracked-marker ${isTracked ? '' : 'off'}">${isTracked ? 'Tracked' : 'Field'}</span></td>
+            <td><strong>${escapeHtml(player.position)}</strong></td>
+            <td>
+              <div class="player-cell">
+                <img class="headshot" src="${escapeHtml(player.headshot)}" alt="${escapeHtml(player.name)}" onerror="this.style.visibility='hidden'" />
+                <div class="player-meta">
+                  <strong>${escapeHtml(player.name)}</strong>
+                  <small>${isTracked ? 'Tracked player' : (escapeHtml(player.country) || 'Field')}</small>
+                </div>
+              </div>
+            </td>
+            <td><strong>${escapeHtml(player.score)}</strong></td>
+            <td>${escapeHtml(player.today)}</td>
+            <td>${escapeHtml(player.thru)}</td>
+            <td>${escapeHtml(player.rounds[0])}</td>
+            <td>${escapeHtml(player.rounds[1])}</td>
+            <td>${escapeHtml(player.rounds[2])}</td>
+            <td>${escapeHtml(player.rounds[3])}</td>
+          </tr>
+        `;
+      }).join('');
+      el('fieldCount').textContent = `Field size: ${players.length}`;
+      return trackedLookup.matches;
+    }
+
+    async function refresh() {
+      saveSettings();
+      showError('');
+      updateRefreshPill('Refreshing…');
+
+      try {
+        const result = await fetchLeaderboard(state.eventId || DEFAULT_EVENT_ID);
+        const data = result?.data || result;
+        state.lastData = data;
+        state.sourceLabel = result?.sourceLabel || data?.sourceLabel || 'Live data';
+        const rawPlayers = data?.events?.[0]?.competitions?.[0]?.competitors || [];
+        const players = rawPlayers.map((player, idx) => player?.nameKey ? player : parsePlayer(player, idx)).sort(comparePlayers);
+        state.players = players;
+        renderTracked(players, state.trackedNames);
+        const trackedMatches = renderTable(players, state.trackedNames);
+        renderHeader(data, trackedMatches);
+        updateRefreshPill(`${state.sourceLabel} • refreshed ${formatTime(new Date())}`);
+      } catch (err) {
+        console.error(err);
+        showError(`Could not load the live leaderboard. Try Refresh now. Details: ${err.message}`);
+        updateRefreshPill('Refresh failed');
+      }
+    }
+
+    function loadSampleNames() {
+      SAMPLE_NAMES.forEach((name, idx) => {
+        const input = el(`tracked_${idx}`);
+        if (input) input.value = name;
+      });
+      saveSettings();
+      renderTracked(state.players, state.trackedNames);
+      const trackedMatches = renderTable(state.players, state.trackedNames);
+      renderHeader(state.lastData || {}, trackedMatches);
+    }
+
+    function applyBulkNames() {
+      const raw = el('bulkNames').value || '';
+      const names = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).slice(0, 5);
+      for (let i = 0; i < 5; i++) {
+        const input = el(`tracked_${i}`);
+        if (input) input.value = names[i] || '';
+      }
+      saveSettings();
+      renderTracked(state.players, state.trackedNames);
+      const trackedMatches = renderTable(state.players, state.trackedNames);
+      renderHeader(state.lastData || {}, trackedMatches);
+    }
+
+    function setAutoRefresh() {
+      clearInterval(state.timer);
+      state.timer = setInterval(refresh, REFRESH_MS);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadSettings();
+      el('controlsToggle').addEventListener('click', toggleControls);
+      el('trackedToggle').addEventListener('click', toggleTracked);
+      el('saveBtn').addEventListener('click', () => {
+        saveSettings();
+        renderTracked(state.players, state.trackedNames);
+        const trackedMatches = renderTable(state.players, state.trackedNames);
+        renderHeader(state.lastData || {}, trackedMatches);
+      });
+      el('refreshBtn').addEventListener('click', refresh);
+      el('sampleBtn').addEventListener('click', loadSampleNames);
+      el('applyBulkBtn').addEventListener('click', applyBulkNames);
+      el('eventId').addEventListener('change', saveSettings);
+      for (let i = 0; i < 5; i++) {
+        el(`tracked_${i}`).addEventListener('change', () => {
+          saveSettings();
+          renderTracked(state.players, state.trackedNames);
+          renderTable(state.players, state.trackedNames);
+        });
+      }
+      setAutoRefresh();
+      refresh();
+    });
+  </script>
+</body>
+</html>
