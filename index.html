@@ -107,6 +107,26 @@
       line-height: 1.2;
     }
 
+    .status-grid-hero {
+      grid-template-columns: 1.25fr .9fr .9fr;
+    }
+
+    .stat-highlight {
+      background: linear-gradient(180deg, rgba(255,212,77,.20), rgba(47,186,123,.10));
+      border: 1px solid rgba(255,212,77,.30);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+    }
+
+    .stat-highlight .stat-label {
+      color: #ffe7a4;
+    }
+
+    .stat-highlight .stat-value {
+      font-size: 24px;
+      color: #fff3c2;
+    }
+
+
     .controls {
       padding: 14px 16px;
       display: flex;
@@ -351,6 +371,16 @@
       line-height: 1.1;
     }
 
+    .mini.priority {
+      background: linear-gradient(180deg, rgba(255,212,77,.18), rgba(255,255,255,.06));
+      border: 1px solid rgba(255,212,77,.22);
+    }
+
+    .mini.priority strong {
+      font-size: 22px;
+      color: #fff1b5;
+    }
+
     .leaderboard {
       padding: 14px;
       scroll-margin-top: 220px;
@@ -535,19 +565,15 @@
     <section class="hero">
       <div class="card hero-main">
         <div class="eyebrow">Live golf tracker</div>
-        <h1>Masters leaderboard with your 5 guys pinned and highlighted</h1>
+        <h1>Custom Masters Leaderboard</h1>
         <div class="sub">
           Full field leaderboard on every refresh, plus a tracked-player strip up top so your five names never get lost in the pack.
         </div>
 
-        <div class="status-grid">
-          <div class="stat">
-            <div class="stat-label">Tournament</div>
-            <div class="stat-value" id="eventName">Loading…</div>
-          </div>
-          <div class="stat">
-            <div class="stat-label">Course</div>
-            <div class="stat-value" id="courseName">—</div>
+        <div class="status-grid status-grid-hero">
+          <div class="stat stat-highlight">
+            <div class="stat-label">My combined score for today</div>
+            <div class="stat-value" id="combinedToday">—</div>
           </div>
           <div class="stat">
             <div class="stat-label">Status</div>
@@ -572,7 +598,7 @@
         <div class="controls-body">
 
         <div class="field">
-          <label for="eventId">ESPN event / tournament ID</label>
+          <label for="eventId">Fallback event ID</label>
           <input id="eventId" value="401811941" />
         </div>
 
@@ -596,7 +622,7 @@
         </details>
 
         <div class="footnote">
-          Auto-refreshes every 60 seconds. It tries ESPN directly first, then a read-only proxy fallback. If ESPN changes tournament IDs year to year, just replace the ID above.
+          Auto-refreshes every 20 seconds. It now tries official Masters sources first, then PGA TOUR, with a legacy fallback if those sources are unavailable. You usually will not need to change the fallback ID.
         </div>
         </div>
       </div>
@@ -620,7 +646,7 @@
       <div class="leaderboard-head">
         <div>
           <div class="section-title">Full leaderboard</div>
-          <div class="tiny">Tracked rows are highlighted in gold.</div>
+    <div class="tiny">Tracked rows are pinned with a clear gold treatment and the table sorts by current position.</div>
         </div>
         <div class="pill" id="refreshState">Waiting for first refresh</div>
       </div>
@@ -657,7 +683,7 @@
       'Xander Schauffele'
     ];
     const DEFAULT_EVENT_ID = '401811941';
-    const REFRESH_MS = 60000;
+    const REFRESH_MS = 20000;
 
     const el = (id) => document.getElementById(id);
     const state = {
@@ -667,6 +693,7 @@
       eventId: DEFAULT_EVENT_ID,
       controlsCollapsed: true,
       trackedMinimized: false,
+      lastData: null,
     };
 
     function buildNameFields() {
@@ -788,9 +815,14 @@
       }).format(date);
     }
 
-    function numericPosition(raw, fallbackIndex) {
-      const cleaned = String(raw ?? '').replace(/^T/i, '').replace(/[^0-9]/g, '');
-      return cleaned ? Number(cleaned) : fallbackIndex + 1;
+    function numericPosition(raw, fallbackIndex, scoreValue = null) {
+      const rawStr = String(raw ?? '').trim();
+      const cleaned = rawStr.replace(/^T/i, '').replace(/[^0-9]/g, '');
+      if (cleaned) return Number(cleaned);
+      if (typeof scoreValue === 'number' && Number.isFinite(scoreValue)) {
+        return 1000 + scoreValue;
+      }
+      return 5000 + fallbackIndex + 1;
     }
 
     function scoreDisplay(raw) {
@@ -799,13 +831,23 @@
       return String(raw);
     }
 
-    function numericRelativeScore(raw) {
-      if (raw == null || raw === '') return null;
-      const s = String(raw).trim().toUpperCase();
-      if (!s || s === '—' || s === '-') return null;
-      if (s === 'E') return 0;
-      const m = s.match(/[+-]?\d+/);
-      return m ? Number(m[0]) : null;
+    function relativeScoreToNumber(raw) {
+      const str = String(raw ?? '').trim().toUpperCase();
+      if (!str || str === '—' || str === '-') return null;
+      if (str === 'E' || str === 'EVEN') return 0;
+      const match = str.match(/^([+-]?)(\d+)$/);
+      if (match) {
+        const sign = match[1] === '-' ? -1 : 1;
+        return sign * Number(match[2]);
+      }
+      const direct = Number(str);
+      return Number.isFinite(direct) ? direct : null;
+    }
+
+    function formatRelativeScore(num) {
+      if (num == null || !Number.isFinite(num)) return '—';
+      if (num === 0) return 'E';
+      return num > 0 ? `+${num}` : String(num);
     }
 
     function tryTodayFromStatistics(player) {
@@ -861,6 +903,8 @@
 
       const scoreText = scoreDisplay(score);
       const todayText = scoreDisplay(today);
+      const scoreNumber = relativeScoreToNumber(scoreText);
+      const todayNumber = relativeScoreToNumber(todayText);
 
       return {
         raw: player,
@@ -868,12 +912,12 @@
         name,
         nameKey: normalizeName(name),
         position: String(position),
-        positionSort: numericPosition(position, idx),
+        positionSort: numericPosition(position, idx, scoreNumber),
         score: scoreText,
-        scoreNumber: numericRelativeScore(scoreText),
+        scoreNumber,
         thru: String(thru || '—'),
         today: todayText,
-        todayNumber: numericRelativeScore(todayText),
+        todayNumber,
         rounds,
         headshot: getHeadshot(id),
         country: player?.athlete?.flag?.alt || player?.athlete?.country || '',
@@ -902,20 +946,162 @@
       }
     }
 
-    async function fetchLeaderboard(eventId) {
-      const direct1 = `https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?league=pga&region=us&lang=en&event=${encodeURIComponent(eventId)}`;
-      const direct2 = `https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?tournamentId=${encodeURIComponent(eventId)}`;
-      const urls = [
-        direct1,
-        direct2,
-        `https://r.jina.ai/http://${direct1.replace(/^https?:\/\//, '')}`,
-        `https://r.jina.ai/http://${direct2.replace(/^https?:\/\//, '')}`,
-      ];
+    async function fetchText(url) {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.text();
+    }
 
+    function normalizeFeedPlayer(source, idx) {
+      const name = source?.name || source?.displayName || source?.playerName || source?.athlete?.displayName || source?.player?.displayName || source?.player?.fullName || source?.fullName || 'Unknown';
+      const id = source?.id || source?.playerId || source?.athlete?.id || source?.player?.id || `src_${idx}_${normalizeName(name)}`;
+      const position = source?.position ?? source?.pos ?? source?.place ?? source?.rank ?? source?.standing ?? source?.leaderboardPosition ?? source?.curatedRank?.displayValue ?? source?.positionText ?? (idx + 1);
+      const scoreRaw = source?.score ?? source?.total ?? source?.toPar ?? source?.to_par ?? source?.totalToPar ?? source?.overall ?? source?.displayScore ?? source?.displayTotal ?? '—';
+      const todayRaw = source?.today ?? source?.roundToday ?? source?.toDay ?? source?.roundScore ?? source?.currentRoundToPar ?? source?.todayScore ?? source?.roundDisplay ?? source?.day ?? '—';
+      const thruRaw = source?.thru ?? source?.hole ?? source?.status ?? source?.holesComplete ?? source?.through ?? source?.toHole ?? source?.playerStatus ?? source?.teeTime ?? source?.roundStatus ?? '—';
+      const roundsRaw = source?.rounds || source?.scores || source?.roundScores || source?.round_details || [];
+      const rounds = Array.isArray(roundsRaw)
+        ? [0,1,2,3].map((i) => scoreDisplay(roundsRaw?.[i]?.score ?? roundsRaw?.[i]?.displayValue ?? roundsRaw?.[i]?.value ?? roundsRaw?.[i] ?? '—'))
+        : ['—','—','—','—'];
+      const scoreText = scoreDisplay(scoreRaw);
+      const todayText = scoreDisplay(todayRaw);
+      const scoreNumber = relativeScoreToNumber(scoreText);
+      const todayNumber = relativeScoreToNumber(todayText);
+      return {
+        raw: source,
+        id,
+        name,
+        nameKey: normalizeName(name),
+        position: String(position),
+        positionSort: numericPosition(position, idx, scoreNumber),
+        score: scoreText,
+        scoreNumber,
+        thru: String(thruRaw || '—'),
+        today: todayText,
+        todayNumber,
+        rounds,
+        headshot: getHeadshot(id),
+        country: source?.country || source?.athlete?.flag?.alt || source?.athlete?.country || source?.player?.country || '',
+      };
+    }
+
+    function looksLikeLeaderboardPlayer(item) {
+      if (!item || typeof item !== 'object') return false;
+      const candidateName = item?.name || item?.displayName || item?.playerName || item?.athlete?.displayName || item?.player?.displayName || item?.player?.fullName || item?.fullName;
+      const hasLeaderboardSignal = 'position' in item || 'pos' in item || 'score' in item || 'toPar' in item || 'today' in item || 'thru' in item || 'hole' in item || 'rounds' in item || 'scores' in item || 'roundScores' in item;
+      return Boolean(candidateName && hasLeaderboardSignal);
+    }
+
+    function collectPlayersDeep(root, limit = 300) {
+      const results = [];
+      const seen = new Set();
+      function walk(node) {
+        if (!node || results.length >= limit) return;
+        if (Array.isArray(node)) {
+          if (node.length && node.every(looksLikeLeaderboardPlayer)) {
+            for (const item of node) {
+              const key = JSON.stringify([item?.id, item?.name, item?.displayName, item?.playerName, item?.athlete?.displayName, item?.position, item?.pos, item?.score, item?.toPar, item?.today, item?.thru]);
+              if (!seen.has(key)) {
+                seen.add(key);
+                results.push(item);
+              }
+            }
+          }
+          for (const item of node) walk(item);
+          return;
+        }
+        if (typeof node === 'object') {
+          for (const value of Object.values(node)) walk(value);
+        }
+      }
+      walk(root);
+      return results;
+    }
+
+    function feedToEventData(players, sourceLabel, statusText = 'Live') {
+      return {
+        sourceLabel,
+        statusText,
+        events: [{
+          name: sourceLabel,
+          status: { type: { detail: statusText } },
+          competitions: [{
+            status: { type: { detail: statusText } },
+            competitors: players,
+          }],
+        }],
+      };
+    }
+
+    function tryExtractJsonObjects(text) {
+      const objects = [];
+      const starts = [];
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === '{') starts.push(i);
+      }
+      for (const start of starts.slice(0, 30)) {
+        let depth = 0;
+        let inStr = false;
+        let esc = false;
+        for (let i = start; i < text.length; i++) {
+          const ch = text[i];
+          if (inStr) {
+            if (esc) esc = false;
+            else if (ch === '\\') esc = true;
+            else if (ch === '"') inStr = false;
+            continue;
+          }
+          if (ch === '"') { inStr = true; continue; }
+          if (ch === '{') depth++;
+          if (ch === '}') {
+            depth--;
+            if (depth === 0) {
+              const chunk = text.slice(start, i + 1);
+              try {
+                objects.push(JSON.parse(chunk));
+              } catch (_) {}
+              break;
+            }
+          }
+        }
+      }
+      return objects;
+    }
+
+    function parseLeaderboardRowsFromText(text) {
+      const lines = text.split(/\r?\n/).map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      const players = [];
+      const seen = new Set();
+      const patterns = [
+        /^(T?\d+|CUT|WD|DQ|E)\s+([A-Z][A-Za-z'’\-.]+(?:\s+[A-Z][A-Za-z'’\-.]+){1,3})\s+([+-]\d+|E)\s+((?:F|CUT|WD|DQ|[1-9]|1\d|18|\d{1,2}:\d{2}\s*[AP]M|\d{1,2}:\d{2}))$/i,
+        /^(T?\d+|CUT|WD|DQ|E)\s+([A-Z]\.\s*[A-Z][A-Za-z'’\-.]+)\s+([+-]\d+|E)\s+((?:F|CUT|WD|DQ|[1-9]|1\d|18|\d{1,2}:\d{2}\s*[AP]M|\d{1,2}:\d{2}))$/i,
+      ];
+      for (const line of lines) {
+        for (const pattern of patterns) {
+          const m = line.match(pattern);
+          if (!m) continue;
+          const [, pos, name, score, thru] = m;
+          const key = `${normalizeName(name)}|${pos}|${score}|${thru}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            players.push({ position: pos, name, score, today: '—', thru, rounds: [] });
+          }
+          break;
+        }
+      }
+      return players;
+    }
+
+    async function tryJsonSource(urls, sourceLabel, statusText) {
       const errors = [];
       for (const url of urls) {
         try {
-          return await fetchJson(url);
+          const json = await fetchJson(url);
+          const rawPlayers = collectPlayersDeep(json);
+          if (rawPlayers.length >= 20) {
+            const players = rawPlayers.map(normalizeFeedPlayer);
+            return { data: feedToEventData(players, sourceLabel, statusText), sourceLabel };
+          }
         } catch (err) {
           errors.push(`${url} -> ${err.message}`);
         }
@@ -923,13 +1109,101 @@
       throw new Error(errors.join(' | '));
     }
 
-    function renderHeader(data) {
+    async function tryTextSource(urls, sourceLabel, statusText) {
+      const errors = [];
+      for (const url of urls) {
+        try {
+          const text = await fetchText(url);
+          const extractedObjects = tryExtractJsonObjects(text);
+          let rawPlayers = [];
+          for (const obj of extractedObjects) {
+            rawPlayers = collectPlayersDeep(obj);
+            if (rawPlayers.length >= 20) break;
+          }
+          if (rawPlayers.length >= 20) {
+            const players = rawPlayers.map(normalizeFeedPlayer);
+            return { data: feedToEventData(players, sourceLabel, statusText), sourceLabel };
+          }
+          const parsedRows = parseLeaderboardRowsFromText(text);
+          if (parsedRows.length >= 20) {
+            const players = parsedRows.map(normalizeFeedPlayer);
+            return { data: feedToEventData(players, sourceLabel, statusText), sourceLabel };
+          }
+        } catch (err) {
+          errors.push(`${url} -> ${err.message}`);
+        }
+      }
+      throw new Error(errors.join(' | '));
+    }
+
+    async function fetchLeaderboard(eventId) {
+      const mastersJsonUrls = [
+        'https://www.masters.com/en_US/scores/feeds/leaderboard.json',
+        'https://www.masters.com/en_US/scores/feeds/leaderboard-v2.json',
+        'https://www.masters.com/en_US/scores/feeds/scoreboard.json',
+      ];
+      const mastersTextUrls = [
+        'https://r.jina.ai/http://www.masters.com/en_US/scores/index_low.html',
+        'https://r.jina.ai/http://www.masters.com/en_US/scores/',
+        'https://r.jina.ai/http://www.masters.com/leaderboard',
+      ];
+      const pgaJsonUrls = [
+        'https://www.pgatour.com/data/r/014/leaderboard-v2.json',
+        'https://www.pgatour.com/data/r/014/leaderboard.json',
+      ];
+      const pgaTextUrls = [
+        'https://r.jina.ai/http://www.pgatour.com/leaderboard',
+        'https://r.jina.ai/http://www.pgatour.com/tournaments/2026/masters-tournament/R2026014/overview',
+      ];
+      const legacyEspnUrls = [
+        `https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?league=pga&region=us&lang=en&event=${encodeURIComponent(eventId)}`,
+        `https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?tournamentId=${encodeURIComponent(eventId)}`,
+        `https://r.jina.ai/http://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?league=pga&region=us&lang=en&event=${encodeURIComponent(eventId)}`,
+        `https://r.jina.ai/http://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?tournamentId=${encodeURIComponent(eventId)}`,
+      ];
+
+      const attempts = [
+        () => tryJsonSource(mastersJsonUrls, 'Official Masters', 'Live from masters.com'),
+        () => tryTextSource(mastersTextUrls, 'Official Masters', 'Live from masters.com'),
+        () => tryJsonSource(pgaJsonUrls, 'PGA TOUR', 'Live from pgatour.com'),
+        () => tryTextSource(pgaTextUrls, 'PGA TOUR', 'Live from pgatour.com'),
+        async () => {
+          const errors = [];
+          for (const url of legacyEspnUrls) {
+            try {
+              const json = await fetchJson(url);
+              const players = (json?.events?.[0]?.competitions?.[0]?.competitors || []).map(parsePlayer);
+              if (players.length >= 20) {
+                return { data: json, sourceLabel: 'Legacy backup' };
+              }
+            } catch (err) {
+              errors.push(`${url} -> ${err.message}`);
+            }
+          }
+          throw new Error(errors.join(' | '));
+        },
+      ];
+
+      const errors = [];
+      for (const attempt of attempts) {
+        try {
+          return await attempt();
+        } catch (err) {
+          errors.push(err.message);
+        }
+      }
+      throw new Error(errors.join(' | '));
+    }
+
+    function renderHeader(data, trackedMatches = []) {
       const event = data?.events?.[0] || {};
       const comp = event?.competitions?.[0] || {};
-      const course = comp?.venue?.fullName || comp?.venue?.address?.city || event?.venue?.fullName || '—';
-      const status = comp?.status?.type?.detail || event?.status?.type?.detail || 'Live';
-      el('eventName').textContent = event?.name || 'Masters Tournament';
-      el('courseName').textContent = course;
+      const status = comp?.status?.type?.detail || event?.status?.type?.detail || event?.name || 'Live';
+      const combinedToday = trackedMatches.reduce((sum, item) => {
+        if (!item?.found || item.found.todayNumber == null) return sum;
+        return sum + item.found.todayNumber;
+      }, 0);
+      el('combinedToday').textContent = formatRelativeScore(combinedToday);
       el('eventStatus').textContent = status;
       el('lastRefresh').textContent = formatTime(new Date());
     }
@@ -973,8 +1247,8 @@
                 <div class="tiny" style="margin-top: 12px;">Not found in the loaded field.</div>
               </div>
               <div class="kv">
-                <div class="mini priority"><span>Today</span><strong>—</strong></div>
-                <div class="mini"><span>Total</span><strong>—</strong></div>
+                <div class="mini"><span>Score</span><strong>—</strong></div>
+                <div class="mini"><span>Today</span><strong>—</strong></div>
                 <div class="mini"><span>Thru</span><strong>—</strong></div>
               </div>
             </article>
@@ -998,7 +1272,13 @@
           </article>
         `;
       }).join('');
-      return matches;
+    }
+
+    function getTrackedLookup(players, trackedNames) {
+      const matches = findTrackedPlayers(players, trackedNames);
+      const idSet = new Set(matches.filter(item => item.found?.id).map(item => String(item.found.id)));
+      const nameSet = new Set(matches.filter(item => item.found?.nameKey).map(item => item.found.nameKey));
+      return { matches, idSet, nameSet };
     }
 
     function comparePlayers(a, b) {
@@ -1031,13 +1311,6 @@
         }
         return next;
       });
-    }
-
-    function getTrackedLookup(players, trackedNames) {
-      const matches = findTrackedPlayers(players, trackedNames);
-      const idSet = new Set(matches.filter(item => item.found?.id).map(item => String(item.found.id)));
-      const nameSet = new Set(matches.filter(item => item.found?.nameKey).map(item => item.found.nameKey));
-      return { matches, idSet, nameSet };
     }
 
     function renderTable(players, trackedNames) {
@@ -1078,17 +1351,22 @@
       updateRefreshPill('Refreshing…');
 
       try {
-        const data = await fetchLeaderboard(state.eventId || DEFAULT_EVENT_ID);
+        const result = await fetchLeaderboard(state.eventId || DEFAULT_EVENT_ID);
+        const data = result?.data || result;
+        state.lastData = data;
+        state.sourceLabel = result?.sourceLabel || data?.sourceLabel || 'Live data';
         const rawPlayers = data?.events?.[0]?.competitions?.[0]?.competitors || [];
-        const players = assignComputedPositions(rawPlayers.map(parsePlayer).sort(comparePlayers));
+        const players = assignComputedPositions(
+          rawPlayers.map((player, idx) => player?.nameKey ? player : parsePlayer(player, idx)).sort(comparePlayers)
+        );
         state.players = players;
-        const trackedMatches = renderTracked(players, state.trackedNames);
+        renderTracked(players, state.trackedNames);
+        const trackedMatches = renderTable(players, state.trackedNames);
         renderHeader(data, trackedMatches);
-        renderTable(players, state.trackedNames);
-        updateRefreshPill(`Live • refreshed ${formatTime(new Date())}`);
+        updateRefreshPill(`${state.sourceLabel} • refreshed ${formatTime(new Date())}`);
       } catch (err) {
         console.error(err);
-        showError(`Could not load the live leaderboard. Try Refresh now, or verify the event ID. Details: ${err.message}`);
+        showError(`Could not load the live leaderboard. Try Refresh now. Details: ${err.message}`);
         updateRefreshPill('Refresh failed');
       }
     }
@@ -1100,7 +1378,8 @@
       });
       saveSettings();
       renderTracked(state.players, state.trackedNames);
-      renderTable(state.players, state.trackedNames);
+      const trackedMatches = renderTable(state.players, state.trackedNames);
+      renderHeader(state.lastData || {}, trackedMatches);
     }
 
     function applyBulkNames() {
@@ -1112,7 +1391,8 @@
       }
       saveSettings();
       renderTracked(state.players, state.trackedNames);
-      renderTable(state.players, state.trackedNames);
+      const trackedMatches = renderTable(state.players, state.trackedNames);
+      renderHeader(state.lastData || {}, trackedMatches);
     }
 
     function setAutoRefresh() {
@@ -1127,7 +1407,8 @@
       el('saveBtn').addEventListener('click', () => {
         saveSettings();
         renderTracked(state.players, state.trackedNames);
-        renderTable(state.players, state.trackedNames);
+        const trackedMatches = renderTable(state.players, state.trackedNames);
+        renderHeader(state.lastData || {}, trackedMatches);
       });
       el('refreshBtn').addEventListener('click', refresh);
       el('sampleBtn').addEventListener('click', loadSampleNames);
